@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f4ee">
+  <title>Sentinal | CCTV/DVR Assessment</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Sentinal dashboard">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span>Sentinal<span class="brand-sub">SECURITY ASSESSMENT</span></span>
+    </a>
+    <div class="topbar-status"><span class="status-dot"></span><span id="nmap-status">Checking scanner</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">AUTHORIZED NETWORK REVIEW</p>
+        <h1 id="page-title">Camera &amp; DVR<br>assessment</h1>
+      </div>
+      <p class="intro-copy">Discover exposed services on a controlled network and keep a clear record of what was observed.</p>
+    </section>
+
+    <section class="workspace" aria-label="Scan workspace">
+      <div class="scan-panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">NEW ASSESSMENT</p><h2>Scan scope</h2></div>
+          <span class="step-number">01</span>
+        </div>
+        <form id="scan-form">
+          <label for="target">Private IP or CIDR</label>
+          <div class="input-row">
+            <input id="target" name="target" type="text" value="192.168.1.0/24" required maxlength="64" spellcheck="false" autocomplete="off">
+            <button id="scan-button" type="submit"><span>Start scan</span><span aria-hidden="true">↗</span></button>
+          </div>
+          <p class="field-hint">Up to 256 addresses. Private and loopback ranges only.</p>
+          <label class="consent-line" for="authorized">
+            <input id="authorized" name="authorized" type="checkbox" required>
+            <span>I have explicit permission to assess this network.</span>
+          </label>
+          <p class="safety-note"><strong>Bounded checks.</strong> TCP connect scan with light service identification. No credential attempts, exploit scripts, or device changes.</p>
+          <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+
+      <aside class="scope-panel">
+        <p class="eyebrow">ASSESSMENT BOUNDARY</p>
+        <div class="scope-rule"><span>01</span><p>Find reachable hosts</p></div>
+        <div class="scope-rule"><span>02</span><p>Record open TCP services</p></div>
+        <div class="scope-rule"><span>03</span><p>Flag probable video devices</p></div>
+        <div class="scope-rule"><span>04</span><p>Store evidence for review</p></div>
+        <p class="scope-footnote">Service exposure is an observation, not confirmation of a vulnerability.</p>
+      </aside>
+    </section>
+
+    <section class="runs-section" aria-labelledby="runs-title">
+      <div class="runs-heading">
+        <div><p class="eyebrow">LOCAL HISTORY</p><h2 id="runs-title">Recent assessments</h2></div>
+        <span id="run-count" class="run-count">0 SCANS</span>
+      </div>
+      <div id="scan-list" class="scan-list" aria-live="polite">
+        <p class="empty-state">No assessments yet. Choose an authorized private target to begin.</p>
+      </div>
+    </section>
+    <footer class="page-footer"><span>Sentinal · CCTV/DVR assessment prototype</span><a href="/docs" target="_blank" rel="noreferrer">API reference <span aria-hidden="true">↗</span></a></footer>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

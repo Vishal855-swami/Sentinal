@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assessment report | Sentinal</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="report-page">
+  <header class="topbar no-print">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span>Sentinal<span class="brand-sub">ASSESSMENT REPORT</span></span>
+    </a>
+    <button class="print-button" type="button" onclick="window.print()">Print / Save PDF</button>
+  </header>
+  <main class="report-shell">
+    <a class="back-link no-print" href="/">← Back to assessments</a>
+    <p class="eyebrow">ASSESSMENT REPORT</p>
+    <h1>Network observation</h1>
+    <dl class="report-meta">
+      <div><dt>Target</dt><dd>{{ scan.target }}</dd></div>
+      <div><dt>Status</dt><dd>{{ scan.status|title }}</dd></div>
+      <div><dt>Started</dt><dd>{{ scan.created_at }}</dd></div>
+      <div><dt>Hosts</dt><dd>{{ scan.host_count }}</dd></div>
+      <div><dt>Probable CCTV/DVR</dt><dd>{{ scan.device_count }}</dd></div>
+      <div><dt>Service observations</dt><dd>{{ scan.finding_count }}</dd></div>
+    </dl>
+    {% if scan.message %}<p class="report-message">{{ scan.message }}</p>{% endif %}
+    <h2>Devices and services</h2>
+    {% if scan.devices %}
+      {% for device in scan.devices %}
+        <article class="report-device">
+          <div class="report-device-heading"><h3>{{ device.ip_address }}{% if device.hostname %} · {{ device.hostname }}{% endif %}</h3><span>{{ device.device_type }}</span></div>
+          {% if device.identification_evidence %}<p class="report-evidence">Identification evidence: {{ device.identification_evidence|join('; ') }}</p>{% endif %}
+          {% if device.services %}
+            <table><thead><tr><th>Port</th><th>Service</th><th>Product / version</th></tr></thead><tbody>
+            {% for service in device.services %}<tr><td>{{ service.protocol }}/{{ service.port }}</td><td>{{ service.name }}</td><td>{{ service.product }} {{ service.version }}</td></tr>{% endfor %}
+            </tbody></table>
+          {% else %}<p>No open services returned by the scan.</p>{% endif %}
+        </article>
+      {% endfor %}
+    {% else %}<p>No hosts were reported.</p>{% endif %}
+    <h2>Findings</h2>
+    {% if scan.findings %}
+      {% for finding in scan.findings %}
+        <article class="report-finding">
+          <div class="finding-top"><span class="severity severity-{{ finding.severity }}">{{ finding.severity }}</span><span>{{ finding.device_ip }}</span></div>
+          <h3>{{ finding.title }}</h3><p>{{ finding.details }}</p>
+          <p><strong>Evidence:</strong> {{ finding.evidence }}</p>
+          <p><strong>Recommendation:</strong> {{ finding.recommendation }}</p>
+        </article>
+      {% endfor %}
+    {% else %}<p>No service observations were recorded.</p>{% endif %}
+    <p class="report-disclaimer">This report records scan observations only. Device classification is heuristic; findings require administrator verification. No credentials or exploit checks were attempted.</p>
+  </main>
+</body>
+</html>
