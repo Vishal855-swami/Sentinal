@@ -7,6 +7,7 @@ const scanList = document.querySelector("#scan-list");
 const runCount = document.querySelector("#run-count");
 const nmapStatus = document.querySelector("#nmap-status");
 
+let nmapAvailable = true;
 const severityOrder = { high: 0, medium: 1, low: 2, info: 3 };
 
 function addText(parent, tag, text, className) {
@@ -105,6 +106,12 @@ async function showDetails(scanId, row) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   formMessage.textContent = "";
+
+  if (!nmapAvailable) {
+    formMessage.textContent = "Nmap is not installed or not on PATH, so scans cannot run in this environment.";
+    return;
+  }
+
   scanButton.disabled = true;
   scanButton.querySelector("span").textContent = "Queueing…";
   try {
@@ -128,9 +135,20 @@ form.addEventListener("submit", async (event) => {
 fetch("/health")
   .then((response) => response.json())
   .then((health) => {
-    nmapStatus.textContent = health.nmap_available ? "Scanner ready" : "Nmap not installed";
-    nmapStatus.parentElement.classList.toggle("unavailable", !health.nmap_available);
+    nmapAvailable = Boolean(health.nmap_available);
+    nmapStatus.textContent = nmapAvailable ? "Scanner ready" : "Nmap not installed";
+    nmapStatus.parentElement.classList.toggle("unavailable", !nmapAvailable);
+    scanButton.disabled = !nmapAvailable;
+    if (!nmapAvailable) {
+      scanButton.querySelector("span").textContent = "Scanner unavailable";
+      formMessage.textContent = "This environment cannot run scans until Nmap is installed.";
+    }
   })
-  .catch(() => { nmapStatus.textContent = "Scanner status unavailable"; });
+  .catch(() => {
+    nmapAvailable = false;
+    nmapStatus.textContent = "Scanner status unavailable";
+    scanButton.disabled = true;
+    scanButton.querySelector("span").textContent = "Scanner unavailable";
+  });
 
 loadScans();
