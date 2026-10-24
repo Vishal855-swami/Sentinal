@@ -11,10 +11,23 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    api_token: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    scans: Mapped[list["ScanRun"]] = relationship(back_populates="user")
+
+
 class ScanRun(Base):
     __tablename__ = "scan_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     target: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued")
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -24,6 +37,7 @@ class ScanRun(Base):
     device_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     finding_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    user: Mapped["User | None"] = relationship(back_populates="scans")
     devices: Mapped[list["Device"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
     findings: Mapped[list["Finding"]] = relationship(back_populates="scan", cascade="all, delete-orphan")
 

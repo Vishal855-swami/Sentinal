@@ -72,3 +72,36 @@ def test_large_private_network_is_rejected(client):
     response = client.post("/api/scans", json={"target": "10.0.0.0/16", "authorized": True})
 
     assert response.status_code == 422
+
+
+def test_scan_can_be_cancelled_after_creation(client):
+    response = client.post("/api/scans", json={"target": "192.168.1.0/24", "authorized": True})
+    assert response.status_code == 202
+    scan_id = response.json()["id"]
+
+    cancel_response = client.post(f"/api/scans/{scan_id}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+
+    detail = client.get(f"/api/scans/{scan_id}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] == "cancelled"
+
+
+def test_user_registration_and_login_create_authenticated_scan(client):
+    register = client.post("/api/users/register", json={"username": "alice", "password": "Secret123!"})
+    assert register.status_code == 201
+    assert register.json()["username"] == "alice"
+
+    login = client.post("/api/users/login", json={"username": "alice", "password": "Secret123!"})
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    assert token
+
+    response = client.post(
+        "/api/scans",
+        json={"target": "192.168.1.0/24", "authorized": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 202
+    assert response.json()["user_id"] == register.json()["id"]

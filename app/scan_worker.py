@@ -9,6 +9,7 @@ from app.scanner import NmapScanner, ScannerError
 
 logger = logging.getLogger(__name__)
 scanner = NmapScanner()
+_cancelled_scans: set[str] = set()
 
 
 def _service_finding(ip_address: str, service: dict) -> Finding:
@@ -40,11 +41,35 @@ def _service_finding(ip_address: str, service: dict) -> Finding:
     )
 
 
+def is_cancelled(scan_id: str) -> bool:
+    return scan_id in _cancelled_scans
+
+
+def request_cancel(scan_id: str) -> None:
+    _cancelled_scans.add(scan_id)
+    db = database.SessionLocal()
+    try:
+        scan = db.scalar(select(ScanRun).where(ScanRun.id == scan_id))
+        if scan is not None and scan.status in {"queued", "running"}:
+            scan.status = "cancelled"
+            scan.message = "Scan cancelled by user."
+            scan.completed_at = datetime.now(timezone.utc)
+            db.commit()
+    finally:
+        db.close()
+
+
 def run_scan(scan_id: str) -> None:
     db = database.SessionLocal()
     try:
         scan = db.scalar(select(ScanRun).where(ScanRun.id == scan_id))
-        if scan is None or scan.status != "queued":
+        if scan is None or scan.status not in {"queued", "running"}:
+            return
+        if is_cancelled(scan_id):
+            scan.status = "cancelled"
+            scan.message = "Scan cancelled by user."
+            scan.completed_at = datetime.now(timezone.utc)
+            db.commit()
             return
 
         scan.status = "running"
@@ -52,7 +77,20 @@ def run_scan(scan_id: str) -> None:
         db.commit()
 
         outcome = scanner.scan(scan.target)
+        if is_cancelled(scan_id):
+            scan.status = "cancelled"
+            scan.message = "Scan cancelled by user."
+            scan.completed_at = datetime.now(timezone.utc)
+            db.commit()
+            return
+
         for host in outcome.hosts:
+            if is_cancelled(scan_id):
+                scan.status = "cancelled"
+                scan.message = "Scan cancelled by user."
+                scan.completed_at = datetime.now(timezone.utc)
+                db.commit()
+                return
             device = Device(
                 ip_address=host["ip_address"],
                 hostname=host["hostname"],
