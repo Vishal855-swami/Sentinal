@@ -35,7 +35,9 @@ Set `DATABASE_URL` to use another SQLAlchemy-supported database URL. SQLite is t
 
 Only private or loopback IP addresses/networks are accepted, and each scan is limited to 256 addresses. The scan uses TCP connect scanning and Nmap's light service probes; it does not run NSE scripts, attempt credentials, exploit devices, or modify targets. Run scans only where you have explicit authorization. A detected open service is an observation, not proof of a vulnerability. Camera/DVR identification is heuristic, and firmware age, authentication strength, and configuration checks are not implemented yet.
 
-The first version stores scan summaries, probable devices, exposed services, and evidence. It does not yet provide user accounts, scan cancellation, PDF export, or persistent job queuing.
+Device labels are heuristic and distinguish probable cameras, video recorders, video endpoints, and possible video-surveillance devices from web-managed, remote-management, and unknown network devices. The report page offers JSON and CSV downloads; use Print / Save PDF for a printable PDF. These labels are observations, not proof of device identity.
+
+The first version stores scan summaries, probable devices, exposed services, and evidence. Persistent job queuing is not implemented yet.
 
 ## Tests
 

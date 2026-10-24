@@ -12,7 +12,11 @@
       <span class="brand-mark" aria-hidden="true">S</span>
       <span>Sentinal<span class="brand-sub">ASSESSMENT REPORT</span></span>
     </a>
-    <button class="print-button" type="button" onclick="window.print()">Print / Save PDF</button>
+    <nav class="no-print" aria-label="Report exports">
+      <a class="print-button" href="/reports/{{ scan.id }}/export?format=json">Download JSON</a>
+      <a class="print-button" href="/reports/{{ scan.id }}/export?format=csv">Download CSV</a>
+      <button class="print-button" type="button" onclick="window.print()">Print / Save PDF</button>
+    </nav>
   </header>
   <main class="report-shell">
     <a class="back-link no-print" href="/">← Back to assessments</a>

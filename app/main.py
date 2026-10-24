@@ -1,11 +1,13 @@
+import csv
 import hashlib
+import io
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -17,6 +19,7 @@ from app.scan_worker import request_cancel, run_scan, scanner
 from app.schemas import (
     AuthToken,
     ScanCreate,
+    ScanDetail,
     ScanDetail,
     ScanSummary,
     UserLogin,
@@ -160,3 +163,75 @@ def scan_report(scan_id: str, request: Request, db: Session = Depends(get_db)):
     if scan is None:
         raise HTTPException(status_code=404, detail="Scan not found.")
     return templates.TemplateResponse(request=request, name="report.html", context={"scan": scan})
+
+
+def _csv_cell(value: object) -> str:
+    text = "" if value is None else str(value)
+    if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + text
+    return text
+
+
+@app.get("/reports/{scan_id}/export")
+def export_scan_report(scan_id: str, format: str = "json", db: Session = Depends(get_db)):
+    scan = db.scalar(select(ScanRun).where(ScanRun.id == scan_id))
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found.")
+    if format not in {"json", "csv"}:
+        raise HTTPException(status_code=422, detail="Export format must be json or csv.")
+
+    filename = f"sentinal-report-{scan.id}.{format}"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if format == "json":
+        report = ScanDetail.model_validate(scan).model_dump(mode="json")
+        return JSONResponse(content=report, headers=headers)
+
+    columns = [
+        "scan_id", "target", "status", "created_at", "completed_at", "record_type",
+        "ip_address", "hostname", "device_type", "probable_cctv_dvr", "identification_evidence",
+        "protocol", "port", "service", "product", "version", "severity", "title",
+        "details", "evidence", "recommendation", "confidence",
+    ]
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+
+    def write_row(values: dict) -> None:
+        writer.writerow({key: _csv_cell(value) for key, value in values.items()})
+
+    common = {
+        "scan_id": scan.id,
+        "target": scan.target,
+        "status": scan.status,
+        "created_at": scan.created_at.isoformat() if scan.created_at else "",
+        "completed_at": scan.completed_at.isoformat() if scan.completed_at else "",
+    }
+    for device in scan.devices:
+        device_data = {
+            "ip_address": device.ip_address,
+            "hostname": device.hostname or "",
+            "device_type": device.device_type,
+            "probable_cctv_dvr": device.probable_cctv_dvr,
+            "identification_evidence": "; ".join(device.identification_evidence or []),
+        }
+        for service in device.services or [None]:
+            write_row({
+                **common, **device_data, "record_type": "service" if service else "device",
+                "protocol": service.get("protocol", ""), "port": service.get("port", ""),
+                "service": service.get("name", ""), "product": service.get("product", ""),
+                "version": service.get("version", ""),
+            } if service else {
+                **common, **device_data, "record_type": "device",
+            })
+    for finding in scan.findings:
+        write_row({
+            **common, "record_type": "finding", "ip_address": finding.device_ip,
+            "severity": finding.severity, "title": finding.title, "details": finding.details,
+            "evidence": finding.evidence, "recommendation": finding.recommendation,
+            "confidence": finding.confidence,
+        })
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )

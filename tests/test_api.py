@@ -31,7 +31,7 @@ def client(monkeypatch):
                         "probable_cctv_dvr": True,
                         "identification_evidence": ["TCP port 554 is commonly associated with video devices"],
                         "services": [
-                            {"protocol": "tcp", "port": 554, "name": "rtsp", "product": "", "version": ""}
+                            {"protocol": "tcp", "port": 554, "name": "rtsp", "product": "=1+1", "version": ""}
                         ],
                     }
                 ]
@@ -66,6 +66,25 @@ def test_scan_lifecycle_persists_results_and_printable_report(client):
     assert report.status_code == 200
     assert "camera-lab" in report.text
     assert "Print / Save PDF" in report.text
+    assert "Download JSON" in report.text and "Download CSV" in report.text
+
+    json_export = client.get(f"/reports/{scan_id}/export?format=json")
+    assert json_export.status_code == 200
+    assert json_export.headers["content-disposition"].endswith(f'"sentinal-report-{scan_id}.json"')
+    assert json_export.json()["devices"][0]["device_type"] == "Probable CCTV/DVR"
+
+    csv_export = client.get(f"/reports/{scan_id}/export?format=csv")
+    assert csv_export.status_code == 200
+    assert "'=1+1" in csv_export.text
+    assert "Exposed service: rtsp on 554/tcp" in csv_export.text
+
+
+def test_report_export_rejects_unknown_format(client):
+    scan = client.post("/api/scans", json={"target": "192.168.1.0/24", "authorized": True}).json()
+
+    response = client.get(f"/reports/{scan['id']}/export?format=xml")
+
+    assert response.status_code == 422
 
 
 def test_large_private_network_is_rejected(client):

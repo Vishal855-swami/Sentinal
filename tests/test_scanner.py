@@ -29,6 +29,8 @@ def test_scanner_parses_open_services_and_camera_clues():
     assert host["ip_address"] == "192.168.1.20"
     assert host["hostname"] == "camera-lab"
     assert host["probable_cctv_dvr"] is True
+    assert host["device_type"] == "Probable video endpoint"
+    assert host["identification_evidence"]
     assert [service["port"] for service in host["services"]] == [554]
     command, options = calls[0]
     assert "-sT" in command and "--version-light" in command
@@ -47,4 +49,26 @@ def test_non_camera_host_remains_unclassified():
     host = scanner.scan("192.168.1.20/32").hosts[0]
 
     assert host["probable_cctv_dvr"] is False
-    assert host["device_type"] == "Unknown network device"
+    assert host["device_type"] == "Remote-management device"
+
+
+def test_scanner_classifies_video_recorder_from_explicit_service_terms():
+    xml = XML_RESULT.replace('portid="554"', 'portid="37777"')
+    xml = xml.replace('name="rtsp" product="Video service"', 'name="dvr" product="Network Video Recorder"')
+    scanner = NmapScanner(run=lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": xml, "stderr": ""})())
+
+    host = scanner.scan("192.168.1.20/32").hosts[0]
+
+    assert host["probable_cctv_dvr"] is True
+    assert host["device_type"] == "Probable video recorder"
+
+
+def test_scanner_classifies_web_managed_device_without_video_clues():
+    xml = XML_RESULT.replace('portid="554"', 'portid="80"')
+    xml = xml.replace('name="rtsp" product="Video service"', 'name="http" product="nginx"')
+    scanner = NmapScanner(run=lambda *args, **kwargs: type("Result", (), {"returncode": 0, "stdout": xml, "stderr": ""})())
+
+    host = scanner.scan("192.168.1.20/32").hosts[0]
+
+    assert host["probable_cctv_dvr"] is False
+    assert host["device_type"] == "Web-managed network device"

@@ -20,7 +20,10 @@ class ScanOutcome:
 
 class NmapScanner:
     camera_ports = {554, 8000, 8080, 8443, 8899, 9000, 37777, 34567}
-    camera_terms = ("rtsp", "onvif", "hikvision", "dahua", "camera", "webcam", "video")
+    recorder_terms = ("nvr", "dvr", "video recorder", "network video recorder")
+    camera_terms = ("ip camera", "camera", "webcam", "cctv")
+    video_terms = ("rtsp", "onvif", "video")
+    surveillance_vendors = ("hikvision", "dahua", "uniview", "reolink", "amcrest", "axis")
 
     def __init__(self, executable: str = "nmap", run: Callable = subprocess.run):
         self.executable = executable
@@ -94,19 +97,68 @@ class NmapScanner:
                 }
             )
 
-        clues = []
-        for service in services:
-            service_text = " ".join((service["name"], service["product"], service["version"])).lower()
-            if service["port"] in self.camera_ports:
-                clues.append(f"TCP port {service['port']} is commonly associated with video devices")
-            if any(term in service_text for term in self.camera_terms):
-                clues.append(f"Service identification contains: {service['name']} {service['product']}")
+        device_type, probable_cctv_dvr, clues = self._classify_device(services)
 
         return {
             "ip_address": address,
             "hostname": hostname,
-            "probable_cctv_dvr": bool(clues),
-            "device_type": "Probable CCTV/DVR" if clues else "Unknown network device",
-            "identification_evidence": list(dict.fromkeys(clues)),
+            "probable_cctv_dvr": probable_cctv_dvr,
+            "device_type": device_type,
+            "identification_evidence": clues,
             "services": services,
         }
+
+    def _classify_device(self, services: list[dict]) -> tuple[str, bool, list[str]]:
+        service_texts = [
+            " ".join((service["name"], service["product"], service["version"])).lower()
+            for service in services
+        ]
+        combined_text = " ".join(service_texts)
+        clues = []
+
+        if any(term in combined_text for term in self.recorder_terms):
+            clues.append("Service identification contains explicit video-recorder terms")
+            return "Probable video recorder", True, clues
+        if any(term in combined_text for term in self.camera_terms):
+            clues.append("Service identification contains camera-related terms")
+            return "Probable IP camera", True, clues
+        if any(term in combined_text for term in self.surveillance_vendors):
+            clues.append("Service identification contains a known surveillance-vendor name")
+            return "Probable CCTV/DVR", True, clues
+
+        recorder_ports = [service["port"] for service in services if service["port"] in {37777, 34567}]
+        if recorder_ports:
+            clues.extend(
+                f"TCP port {port} is commonly associated with video-recorder management"
+                for port in recorder_ports
+            )
+            return "Probable video recorder", True, clues
+
+        video_services = [
+            service for service, text in zip(services, service_texts)
+            if any(term in text for term in self.video_terms) or service["port"] == 554
+        ]
+        if video_services:
+            for service in video_services:
+                clues.append(f"Video-related service observed: {service['name']} on TCP/{service['port']}")
+            return "Probable video endpoint", True, list(dict.fromkeys(clues))
+
+        surveillance_ports = [
+            service["port"] for service in services
+            if service["port"] in self.camera_ports - {8080, 8443}
+        ]
+        if surveillance_ports:
+            clues.extend(
+                f"TCP port {port} is sometimes associated with video devices"
+                for port in surveillance_ports
+            )
+            return "Possible video surveillance device", True, clues
+
+        service_names = {service["name"].lower() for service in services}
+        if service_names.intersection({"http", "https", "http-proxy"}):
+            clues.append("An HTTP or HTTPS service is exposed")
+            return "Web-managed network device", False, clues
+        if service_names.intersection({"ssh", "telnet"}):
+            clues.append("A remote-management service is exposed")
+            return "Remote-management device", False, clues
+        return "Unknown network device", False, clues
